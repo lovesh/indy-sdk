@@ -7,6 +7,13 @@ This Python wrapper currently requires python 3.6.
 
 Pull requests welcome!
 
+
+### How to install
+    pip install python3-indy
+    
+Note that before you can use python wrapper you must install  c-callable SDK. 
+See the section "Installing the SDK" in the [Indy SDK documentation](../../README.md#installing-the-sdk) 
+ 
 ### How to build
 
 - Install native "indy" library:
@@ -32,3 +39,6 @@ Then run
 
 ### Example use
 For the main workflow examples check tests in demo folder: https://github.com/hyperledger/indy-sdk/tree/master/wrappers/python/tests/demo
+
+#### Troubleshooting
+Use environment variable `RUST_LOG={info|debug|trace}` to output logs of Libindy.

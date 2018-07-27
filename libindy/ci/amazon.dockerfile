@@ -17,13 +17,17 @@ RUN \
            libsodium-devel \
            spectool
 
+# install nodejs and npm
+RUN curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -
+RUN yum -y install nodejs
+
 RUN cd /tmp && \
-   curl https://download.libsodium.org/libsodium/releases/libsodium-1.0.12.tar.gz | tar -xz && \
-    cd /tmp/libsodium-1.0.12 && \
+   curl https://download.libsodium.org/libsodium/releases/libsodium-1.0.14.tar.gz | tar -xz && \
+    cd /tmp/libsodium-1.0.14 && \
     ./configure && \
     make && \
     make install && \
-    rm -rf /tmp/libsodium-1.0.12
+    rm -rf /tmp/libsodium-1.0.14
 
 ENV PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
@@ -35,7 +39,7 @@ RUN wget https://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-mav
 RUN sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
 RUN yum install -y apache-maven
 
-ENV RUST_ARCHIVE=rust-1.21.0-x86_64-unknown-linux-gnu.tar.gz
+ENV RUST_ARCHIVE=rust-1.26.0-x86_64-unknown-linux-gnu.tar.gz
 ENV RUST_DOWNLOAD_URL=https://static.rust-lang.org/dist/$RUST_ARCHIVE
 
 RUN mkdir -p /rust
@@ -57,6 +61,15 @@ RUN cd /usr/src && \
     make altinstall
 
 RUN yum install -y ncurses-devel
+
+RUN cd /tmp && \
+    wget https://github.com/zeromq/libzmq/releases/download/v4.2.2/zeromq-4.2.2.tar.gz && \
+    tar xfz zeromq-4.2.2.tar.gz && rm zeromq-4.2.2.tar.gz && \
+    cd /tmp/zeromq-4.2.2 && \
+    ./configure && \
+    make && \
+    make install && \
+    rm -rf /tmp/zeromq-4.2.2
 
 RUN useradd -ms /bin/bash -u $uid indy
 USER indy

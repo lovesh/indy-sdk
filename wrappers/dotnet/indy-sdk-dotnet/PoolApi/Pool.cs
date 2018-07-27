@@ -25,6 +25,19 @@ namespace Hyperledger.Indy.PoolApi
         };
 
         /// <summary>
+        /// Callback to use when list pools command has completed.
+        /// </summary>
+        private static ListPoolsCompletedDelegate _listPoolsCallback = (command_handle, err, pools) =>
+        {
+            var taskCompletionSource = PendingCommands.Remove<string>(command_handle);
+
+            if (!CallbackHelper.CheckCallback(taskCompletionSource, err))
+                return;
+
+            taskCompletionSource.SetResult(pools);
+        };
+
+        /// <summary>
         /// Creates a new local pool configuration with the specified name that can be used later to open a connection to 
         /// pool nodes.
         /// </summary>
@@ -140,6 +153,25 @@ namespace Hyperledger.Indy.PoolApi
         }
 
         /// <summary>
+        /// Lists names of created pool ledgers
+        /// </summary>
+        /// <returns>The pools json.</returns>
+        public static Task<string> ListPoolsAsync()
+        {
+            var taskCompletionSource = new TaskCompletionSource<string>();
+            var commandHandle = PendingCommands.Add(taskCompletionSource);
+
+            var result = NativeMethods.indy_list_pools(
+                commandHandle,
+                _listPoolsCallback
+                );
+
+            CallbackHelper.CheckResult(result);
+
+            return taskCompletionSource.Task;
+        }
+
+        /// <summary>
         /// Whether or not the close function has been called.
         /// </summary>
         private bool _requiresClose = false;
@@ -203,6 +235,35 @@ namespace Hyperledger.Indy.PoolApi
             CallbackHelper.CheckResult(result);
 
             GC.SuppressFinalize(this);
+
+            return taskCompletionSource.Task;
+        }
+
+        /// <summary> 
+        /// Set PROTOCOL_VERSION to specific version. 
+        /// 
+        /// There is a global property PROTOCOL_VERSION that used in every request to the pool and 
+        /// specified version of Indy Node which Libindy works. 
+        /// 
+        /// By default PROTOCOL_VERSION=1. 
+        /// </summary> 
+        /// <param name="protocolVersion">Protocol version will be used: 
+        /// <c> 
+        ///     1 - for Indy Node 1.3 
+        ///     2 - for Indy Node 1.4 
+        /// </c></param> 
+        public static Task SetProtocolVersionAsync(int protocolVersion)
+        {
+            var taskCompletionSource = new TaskCompletionSource<bool>();
+            var commandHandle = PendingCommands.Add(taskCompletionSource);
+
+            var result = NativeMethods.indy_set_protocol_version(
+                commandHandle,
+                protocolVersion,
+                CallbackHelper.TaskCompletingNoValueCallback
+                );
+
+            CallbackHelper.CheckResult(result);
 
             return taskCompletionSource.Task;
         }

@@ -6,6 +6,7 @@ def testing() {
     stage('Testing') {
         parallel([
                 'ubuntu-test' : { ubuntuTesting() },
+                'android-test': { androidTesting() },
                 'macos-test'  : { macosTesting() },
                 'ios-test'    : { iosTesting() },
                 'redhat-test' : { rhelTesting() },
@@ -17,82 +18,107 @@ def testing() {
 def windowsTesting() {
     node('win2016') {
         stage('Windows Test') {
-            echo "Windows Test: Checkout scm"
-            checkout scm
+            def ws_path = "workspace/${env.JOB_NAME}".replace(' ', '_')
+            ws(ws_path) {
+                try {
+                    echo "Windows Test: Checkout scm"
+                    checkout scm
 
-            try {
-                echo "Windows Test: Run Indy pool"
-                bat "docker -H $INDY_SDK_SERVER_IP build --build-arg pool_ip=$INDY_SDK_SERVER_IP -f ci/indy-pool.dockerfile -t indy_pool ci"
-                bat "docker -H $INDY_SDK_SERVER_IP run -d --network host --name indy_pool -p 9701-9708:9701-9708 indy_pool"
+                    echo "Windows Test: Run Indy pool"
+                    bat "docker -H $INDY_SDK_SERVER_IP build --build-arg pool_ip=$INDY_SDK_SERVER_IP -f ci/indy-pool.dockerfile -t indy_pool ci"
+                    bat "docker -H $INDY_SDK_SERVER_IP run -d --network host --name indy_pool -p 9701-9708:9701-9708 indy_pool"
 
-                setupRust()
+                    setupRust()
 
-                dir('libindy') {
-                    echo "Windows Test: Download prebuilt dependencies"
-                    bat 'wget -O prebuilt.zip "https://repo.sovrin.org/windows/libindy/deps/indy-sdk-deps.zip"'
-                    bat 'unzip prebuilt.zip -d prebuilt'
+                    dir('libindy') {
+                        echo "Windows Test: Download prebuilt dependencies"
+                        bat 'wget -O prebuilt.zip "https://repo.sovrin.org/windows/libindy/deps/indy-sdk-deps.zip"'
+                        bat 'unzip prebuilt.zip -d prebuilt'
 
-                    echo "Windows Libindy Test: Build"
-                    withEnv([
-                            "INDY_PREBUILT_DEPS_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "INDY_CRYPTO_PREBUILT_DEPS_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "MILAGRO_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "ZMQPW_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "SODIUM_LIB_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "OPENSSL_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "PATH=$WORKSPACE\\libindy\\prebuilt\\lib;$PATH",
-                            "RUST_BACKTRACE=1"
-                    ]) {
-                        bat "cargo test --no-run"
-
-                        echo "Windows Libindy Test: Run tests"
+                        echo "Windows Libindy Test: Build"
                         withEnv([
-                                "RUST_TEST_THREADS=1",
-                                "RUST_LOG=trace",
-                                "TEST_POOL_IP=$INDY_SDK_SERVER_IP"
+                                "INDY_PREBUILT_DEPS_DIR=$WORKSPACE\\libindy\\prebuilt",
+                                "INDY_CRYPTO_PREBUILT_DEPS_DIR=$WORKSPACE\\libindy\\prebuilt",
+                                "MILAGRO_DIR=$WORKSPACE\\libindy\\prebuilt",
+                                "LIBZMQ_PREFIX=$WORKSPACE\\libindy\\prebuilt",
+                                "SODIUM_LIB_DIR=$WORKSPACE\\libindy\\prebuilt",
+                                "OPENSSL_DIR=$WORKSPACE\\libindy\\prebuilt",
+                                "PATH=$WORKSPACE\\libindy\\prebuilt\\lib;$PATH",
+                                "RUST_BACKTRACE=1"
                         ]) {
-                            bat "cargo test"
+                            bat "cargo build --features fatal_warnings"
+                            bat "cargo test --no-run"
+
+                            echo "Windows Libindy Test: Run tests"
+                            withEnv([
+                                    "RUST_TEST_THREADS=1",
+                                    "RUST_LOG=indy::=debug,zmq=trace",
+                                    "TEST_POOL_IP=$INDY_SDK_SERVER_IP"
+                            ]) {
+                                bat "cargo test"
+                            }
                         }
                     }
-                }
 
-                dir('cli') {
-                    bat "sed -i -e \"s/10\\.0\\.0\\.2/${INDY_SDK_SERVER_IP}/g\" docker_pool_transactions_genesis"
-
-                    bat "copy $WORKSPACE\\libindy\\target\\debug\\indy.dll $WORKSPACE\\libindy\\prebuilt\\lib"
-                    bat "copy $WORKSPACE\\libindy\\target\\debug\\indy.lib $WORKSPACE\\libindy\\prebuilt\\lib"
-
-                    echo "Windows Indy Cli Test: Build"
-                    withEnv([
-                            "INDY_DIR=$WORKSPACE\\libindy\\prebuilt",
-                            "RUST_BACKTRACE=1"
-                    ]) {
-                        bat "cargo test --no-run"
-
-                        echo "Windows Indy Cli Test: Run tests"
+                    dir('libnullpay') {
+                        echo "Windows Libnullpay Test: Build"
                         withEnv([
-                                "RUST_TEST_THREADS=1",
-                                "RUST_LOG=trace",
-                                "TEST_POOL_IP=$INDY_SDK_SERVER_IP"
+                                "RUST_BACKTRACE=1"
                         ]) {
-                            bat "cargo test"
+                            bat "cargo build --features fatal_warnings"
+                            bat "cargo test --no-run"
+
+                            echo "Windows Libnullpay Test: Run tests"
+                            withEnv([
+                                    "RUST_TEST_THREADS=1",
+                                    "RUST_LOG=indy::=debug,zmq=trace",
+                                    "TEST_POOL_IP=$INDY_SDK_SERVER_IP",
+                                    "PATH=$WORKSPACE\\libindy\\target\\debug;$PATH",
+                            ]) {
+                                bat "cargo test"
+                            }
                         }
                     }
-                }
 
-                //TODO wrappers testing
+                    bat "copy $WORKSPACE\\libnullpay\\target\\debug\\nullpay.dll $WORKSPACE\\cli"
 
-            } finally {
-                try {
-                    bat "docker -H $INDY_SDK_SERVER_IP stop indy_pool"
-                } catch (ignore) {
+                    dir('cli') {
+                        bat "sed -i -e \"s/10\\.0\\.0\\.2/${INDY_SDK_SERVER_IP}/g\" docker_pool_transactions_genesis"
+
+                        def featuresArgs = '--features "nullpay_plugin"'
+
+                        echo "Windows Indy Cli Test: Build"
+                        withEnv([
+                                "RUST_BACKTRACE=1"
+                        ]) {
+                            bat "cargo test $featuresArgs --no-run"
+
+                            echo "Windows Indy Cli Test: Run tests"
+                            withEnv([
+                                    "RUST_TEST_THREADS=1",
+                                    "RUST_LOG=indy::=debug,zmq=trace",
+                                    "TEST_POOL_IP=$INDY_SDK_SERVER_IP"
+                            ]) {
+                                bat "cargo test $featuresArgs"
+                            }
+                        }
+                    }
+
+                    //TODO wrappers testing
+
+                } finally {
+                    try {
+                        bat "docker -H $INDY_SDK_SERVER_IP stop indy_pool"
+                    } catch (ignore) {
+                    }
+                    try {
+                        bat "docker -H $INDY_SDK_SERVER_IP rm indy_pool"
+                    } catch (ignore) {
+                    }
+                    cleanWs()
                 }
-                try {
-                    bat "docker -H $INDY_SDK_SERVER_IP rm indy_pool"
-                } catch (ignore) {
-                }
-                step([$class: 'WsCleanup'])
             }
+            cleanWs()
         }
     }
 }
@@ -108,7 +134,8 @@ def macosTesting() {
                     echo "MacOS Test: Build"
                     setupRust()
                     setupBrewPackages()
-                    sh "cargo build"
+                    sh "cargo build --features fatal_warnings"
+                    sh "cargo test --no-run"
                     // TODO testing
                 }
 
@@ -118,6 +145,64 @@ def macosTesting() {
             }
         }
     }
+}
+
+def androidTesting() {
+
+    node('ubuntu') {
+        stage('Android Test') {
+            try {
+                echo 'Building android binaries.This will start emulator and test android binaries'
+                checkout scm
+
+                dir('libindy') {
+                    echo 'Building android binaries: Building docker image'
+                    def testEnv
+                    testEnv = dockerBuild('libindy', "ci/ubuntu.dockerfile ci")
+                    sh 'chmod -R 777 ci/*.sh'
+                    sh 'chmod -R 777 *.sh'
+                    //TODO: IS-835 Tests on emulator fails as of now. Enable device testing when all tests starts passing
+                    //androidTestingOnEmulator(testEnv)
+
+                    //Meanwhile use "build success" as test
+                    buildAndroid(testEnv)
+                }
+            }
+            finally {
+                echo 'Building Android binaries: Cleanup'
+                step([$class: 'WsCleanup'])
+            }
+        }
+    }
+}
+
+def androidTestingOnEmulator(testEnv) {
+    ANDROID_SCRIPT_PATH = 'android.test.sh'
+    echo 'Testing Libindy android files for arm'
+    testEnv.inside {
+        sh "./${ANDROID_SCRIPT_PATH} arm"
+    }
+}
+
+def buildAndroid(buildEnv) {
+
+    ANDROID_SCRIPT_PATH = 'android.build.sh'
+
+    echo 'Building Libindy android files for arm'
+    buildEnv.inside {
+        sh "./${ANDROID_SCRIPT_PATH} -d arm"
+    }
+
+    echo 'Building Libindy android files for x86'
+    buildEnv.inside {
+        sh "./${ANDROID_SCRIPT_PATH} -d x86"
+    }
+
+    echo 'Building Libindy android files for arm64'
+    buildEnv.inside {
+        sh "./${ANDROID_SCRIPT_PATH} -d arm64"
+    }
+
 }
 
 def iosTesting() {
@@ -143,7 +228,13 @@ def iosTesting() {
 
                 dir('wrappers/ios/libindy-pod') {
                     echo "iOS Test: Installing dependencies (pods)"
-                    sh "pod install --repo-update"
+
+                    withEnv([
+                            "GEM_PATH=$HOME/.gem.indy_sdk",
+                            "GEM_HOME=$HOME/.gem.indy_sdk"
+                    ]) {
+                        sh "pod install --repo-update"
+                    }
                 }
 
                 // FIXME replace this hack (manually rewrite installed pod)
@@ -172,7 +263,7 @@ def iosTesting() {
 def ubuntuTesting() {
     node('ubuntu') {
         stage('Ubuntu Test') {
-            linuxTesting("ci/ubuntu.dockerfile ci", "Ubuntu", false, "pool_network")
+            linuxTesting("ci/ubuntu.dockerfile ci", "Ubuntu", "pool_network")
         }
     }
 }
@@ -180,12 +271,12 @@ def ubuntuTesting() {
 def rhelTesting() {
     node('ubuntu') {
         stage('RedHat Test') {
-            linuxTesting("ci/amazon.dockerfile ci", "RedHat", false, "pool_network")
+            linuxTesting("ci/amazon.dockerfile ci", "RedHat", "pool_network")
         }
     }
 }
 
-def linuxTesting(file, env_name, run_interoperability_tests, network_name) {
+def linuxTesting(file, env_name, network_name) {
     def poolInst
     try {
         echo "${env_name} Test: Checkout csm"
@@ -194,51 +285,72 @@ def linuxTesting(file, env_name, run_interoperability_tests, network_name) {
         poolInst = openPool(env_name, network_name)
 
         def testEnv
-        def featuresArgs = ''
+        def additionalFeatures = "sodium_static"
 
         dir('libindy') {
             echo "${env_name} Libindy Test: Build docker image"
             testEnv = dockerBuild('libindy', file)
 
-            if (run_interoperability_tests) {
-                featuresArgs = '--features "interoperability_tests"'
-            }
-
             testEnv.inside("--ip=\"10.0.0.3\" --network=${network_name}") {
                 echo "${env_name} Libindy Test: Build"
-                sh "cargo build $featuresArgs"
+                sh "cargo build --features \"fatal_warnings $additionalFeatures\""
             }
         }
 
         sh "cp libindy/target/debug/libindy.so wrappers/java/lib"
         sh "cp libindy/target/debug/libindy.so wrappers/python"
+        sh "cp libindy/target/debug/libindy.so wrappers/nodejs"
         sh "cp libindy/target/debug/libindy.so cli"
+        sh "cp libindy/target/debug/libindy.so libnullpay"
+
+        dir('libnullpay') {
+            echo "${env_name} Libnullpay Test: Build docker image"
+
+            testEnv.inside("--ip=\"10.0.0.3\" --network=${network_name}") {
+                echo "${env_name} Libnullpay Test: Build"
+                sh "LIBRARY_PATH=./ cargo build --features fatal_warnings"
+            }
+        }
+
+        sh "cp libnullpay/target/debug/libnullpay.so cli"
 
         stash includes: 'wrappers/java/lib/libindy.so', name: "LibindyJavaSO${env_name}"
         stash includes: 'wrappers/python/libindy.so', name: "LibindyPythonSO${env_name}"
+        stash includes: 'wrappers/nodejs/libindy.so', name: "LibindyNodejsSO${env_name}"
         stash includes: 'cli/libindy.so', name: "LibindyCliSO${env_name}"
+        stash includes: 'cli/libnullpay.so', name: "LibnullpayCliSO${env_name}"
 
         parallel([
-                "${env_name}-libindy-test": {
+                "${env_name}-libindy-test"   : {
                     dir('libindy') {
                         testEnv.inside("--network=${network_name}") {
                             echo "${env_name} Libindy Test: Test"
 
                             echo "${env_name} Libindy Test: Build Test"
-                            sh "RUST_BACKTRACE=1 cargo test $featuresArgs --no-run"
-
-                            if (run_interoperability_tests) {
-                                sh 'chmod -R 777 /home/indy/indy-anoncreds/'
-                            }
+                            sh "RUST_BACKTRACE=1 cargo test --no-run --features $additionalFeatures"
 
                             echo "${env_name} Libindy Test: Run tests"
-                            sh "RUST_BACKTRACE=1 RUST_LOG=trace RUST_TEST_THREADS=1 TEST_POOL_IP=10.0.0.2 cargo test $featuresArgs"
+                            sh "RUST_BACKTRACE=1 RUST_LOG=indy::=debug,zmq=trace RUST_TEST_THREADS=1 TEST_POOL_IP=10.0.0.2 cargo test --features  $additionalFeatures"
                         }
                     }
                 },
-                "${env_name}-java-test"   : { linuxModuleTesting(file, env_name, network_name, this.&linuxJavaTesting) },
-                "${env_name}-python-test" : { linuxModuleTesting(file, env_name, network_name, this.&linuxPythonTesting) },
-                "${env_name}-cli-test"    : { linuxModuleTesting(file, env_name, network_name, this.&linuxCLITesting) }
+                "${env_name}-libnullpay-test": {
+                    dir('libnullpay') {
+                        testEnv.inside("--network=${network_name}") {
+                            echo "${env_name} Libnullpay Test: Test"
+
+                            echo "${env_name} Libnullpay Test: Build Test"
+                            sh "LIBRARY_PATH=./ RUST_BACKTRACE=1 cargo test --no-run"
+
+                            echo "${env_name} Libnullpay Test: Run tests"
+                            sh 'LD_LIBRARY_PATH=./:${LD_LIBRARY_PATH} RUST_BACKTRACE=1 RUST_LOG=indy::=debug,zmq=trace RUST_TEST_THREADS=1 TEST_POOL_IP=10.0.0.2 cargo test'
+                        }
+                    }
+                },
+                "${env_name}-java-test"     : { linuxModuleTesting(file, env_name, network_name, this.&linuxJavaTesting) },
+                "${env_name}-python-test"   : { linuxModuleTesting(file, env_name, network_name, this.&linuxPythonTesting) },
+                "${env_name}-nodejs-test"   : { linuxModuleTesting(file, env_name, network_name, this.&linuxNodejsTesting) },
+                "${env_name}-cli-test"      : { linuxModuleTesting(file, env_name, network_name, this.&linuxCLITesting) }
         ])
     }
     finally {
@@ -275,7 +387,7 @@ def linuxJavaTesting(env_name, network_name, testEnv) {
         testEnv.inside("--network=${network_name}") {
             echo "${env_name} Libindy Test: Test java wrapper"
 
-            sh "RUST_LOG=trace TEST_POOL_IP=10.0.0.2 mvn clean test"
+            sh "RUST_LOG=indy::=debug,zmq=trace TEST_POOL_IP=10.0.0.2 mvn clean test"
         }
     }
 }
@@ -288,21 +400,37 @@ def linuxPythonTesting(env_name, network_name, testEnv) {
 
             sh '''
                 python3.5 -m pip install --user -e .
-                LD_LIBRARY_PATH=./ RUST_LOG=trace TEST_POOL_IP=10.0.0.2 python3.5 -m pytest
+                LD_LIBRARY_PATH=./:${LD_LIBRARY_PATH} RUST_LOG=indy::=debug,zmq=trace TEST_POOL_IP=10.0.0.2 python3.5 -m pytest
             '''
         }
     }
 }
 
+def linuxNodejsTesting(env_name, network_name, testEnv) {
+    unstash name: "LibindyNodejsSO${env_name}"
+    testEnv.inside("--network=${network_name}") {
+        echo "${env_name} Libindy Test: Test nodejs wrapper"
+
+        sh '''
+                cd wrappers/nodejs
+                npm run prepare
+                npm install
+                LD_LIBRARY_PATH=./:${LD_LIBRARY_PATH} RUST_LOG=trace TEST_POOL_IP=10.0.0.2 npm test
+            '''
+    }
+}
+
 def linuxCLITesting(env_name, network_name, testEnv) {
     unstash name: "LibindyCliSO${env_name}"
+    unstash name: "LibnullpayCliSO${env_name}"
+
     dir('cli') {
         testEnv.inside("--network=${network_name}") {
             echo "${env_name} Indy Cli Test: Build"
-            sh "LIBRARY_PATH=./ RUST_BACKTRACE=1 cargo test --no-run"
+            sh 'LIBRARY_PATH=./ RUST_BACKTRACE=1 cargo test --features "nullpay_plugin" --no-run'
 
             echo "${env_name} Indy Cli Test: Run tests"
-            sh "LD_LIBRARY_PATH=./ RUST_BACKTRACE=1 RUST_LOG=trace RUST_TEST_THREADS=1 TEST_POOL_IP=10.0.0.2 cargo test"
+            sh 'LD_LIBRARY_PATH=./:${LD_LIBRARY_PATH} RUST_BACKTRACE=1 RUST_LOG=indy::=debug,zmq=trace RUST_TEST_THREADS=1 TEST_POOL_IP=10.0.0.2 cargo test --features "nullpay_plugin"'
         }
     }
 }
@@ -326,7 +454,7 @@ def dockerBuild(name, file = 'ci/ubuntu.dockerfile ci', customParams = '') {
 def dockerClean(env_name, network_name) {
     try {
         try {
-            sh "docker ps --format '{{.ID}}' --filter network=${network_name} | xargs docker rm -f || true" //TODO: FIXME
+            sh "docker ps --format '{{.ID}}' --filter network=${network_name} | xargs docker rm -f || true"//TODO: FIXME
         } catch (error) {
             echo "${env_name} Test: error while force clean-up network ${network_name} - ${error}"
         }
@@ -373,7 +501,7 @@ def closePool(env_name, network_name, poolInst) {
 }
 
 def setupRust() {
-    sh "rustup default 1.21.0"
+    sh "rustup default 1.26.0"
 }
 
 def setupRustIOS() {
@@ -383,5 +511,5 @@ def setupRustIOS() {
 def setupBrewPackages() {
     sh "brew switch libsodium 1.0.12"
     sh "brew switch openssl 1.0.2l"
+    sh "brew switch zeromq 4.2.3"
 }
-

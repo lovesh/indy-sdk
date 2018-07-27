@@ -75,7 +75,7 @@ Successful completion of High and Medium cases tests indicates Beta quality.
   * Invalid json format
   * Invalid json structure (missed fields and etc...)
   * Invalid base58
-  * Invalid crypto keys lenght and format
+  * Invalid crypto keys length and format
   * Invalid crypto primitives (bigints, points)
   * Invalid complex crypto structures (anoncreds structures mostly)
   * Invalid responses from 3d parties (Ledger, Agent)
@@ -144,7 +144,9 @@ The following interoperability cases are needed:
 
 * libindy - Node
   * Interoperability with latest Node version. We test it already with functional tests.
-  * Backward compatibility of Node will be tested as part of Indy Node acceptance. 
+  * Backward compatibility of Node will be tested as part of Indy Node acceptance. (See
+    [these notes](release-workflow.md#compatibility-with-indy-node) for a discussion about
+    how compatibility relates to branches of indy-node and indy-sdk.)
 * libindy - pyindy:
   * Anoncreds protocol interoperability. It is already implemented as part of functional tests.
 * libindy - libindy

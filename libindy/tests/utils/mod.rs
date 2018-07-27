@@ -14,13 +14,17 @@ pub mod anoncreds;
 pub mod types;
 pub mod pairwise;
 pub mod constants;
+pub mod blob_storage;
+pub mod non_secrets;
+pub mod results;
+pub mod payments;
+pub mod rand_utils;
 
 #[macro_use]
 #[allow(unused_macros)]
 #[path = "../../src/utils/test.rs"]
 pub mod test;
 
-#[path = "../../src/utils/timeout.rs"]
 pub mod timeout;
 
 #[path = "../../src/utils/sequence.rs"]
@@ -31,5 +35,13 @@ pub mod sequence;
 #[path = "../../src/utils/cstring.rs"]
 pub mod cstring;
 
+#[macro_use]
+#[allow(unused_macros)]
+#[path = "../../src/utils/byte_array.rs"]
+pub mod byte_array;
+
 #[path = "../../src/utils/inmem_wallet.rs"]
 pub mod inmem_wallet;
+
+#[path = "../../src/domain/mod.rs"]
+pub mod domain;

@@ -1,21 +1,28 @@
+import time
+
 from indy import did, crypto, wallet
 
 import json
 import logging
 
+from indy import pool
+
+from src.utils import run_coroutine, PROTOCOL_VERSION
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 async def demo():
     logger.info("Crypto sample -> started")
 
-    wallet_name = 'wallet1'
-    pool_name = 'pool1'
+    # Set protocol version 2 to work with Indy Node 1.4
+    await pool.set_protocol_version(PROTOCOL_VERSION)
 
     # 1. Create Wallet and Get Wallet Handle
-    await wallet.create_wallet(pool_name, wallet_name, None, None, None)
-    wallet_handle = await wallet.open_wallet(wallet_name, None, None)
+    wallet_config = json.dumps({"id":"wallet"})
+    wallet_credentials = json.dumps({"key": "wallet_key"})
+    await wallet.create_wallet(wallet_config, wallet_credentials)
+    wallet_handle = await wallet.open_wallet(wallet_config, wallet_credentials)
 
     # 2. Create DID
     (_, their_verkey) = await did.create_and_store_my_did(wallet_handle, "{}")
@@ -39,6 +46,11 @@ async def demo():
     await wallet.close_wallet(wallet_handle)
 
     # 6. Delete wallets
-    await wallet.delete_wallet(wallet_name, None)
+    await wallet.delete_wallet(wallet_config, wallet_credentials)
 
     logger.info("Crypto sample -> completed")
+
+
+if __name__ == '__main__':
+    run_coroutine(demo)
+    time.sleep(1)  # FIXME waiting for libindy thread complete

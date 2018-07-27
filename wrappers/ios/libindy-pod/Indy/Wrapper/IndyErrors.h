@@ -43,36 +43,57 @@ typedef NS_ENUM(NSInteger, IndyErrorCode)
     // Invalid library state was detected in runtime. It signals library bug
     CommonInvalidState = 112,
     
-    // Object (json, config, key, claim and etc...) passed by library caller has invalid structure
+    // Object (json, config, key, credential and etc...) passed by library caller has invalid structure
     CommonInvalidStructure = 113,
     
     // IO Error
     CommonIOError = 114,
-    
+
     // Wallet errors
     // Caller passed invalid wallet handle
     WalletInvalidHandle = 200,
-    
+
     // Unknown type of wallet was passed on create_wallet
     WalletUnknownTypeError = 201,
-    
+
     // Attempt to register already existing wallet type
     WalletTypeAlreadyRegisteredError = 202,
-    
+
     // Attempt to create wallet with name used for another exists wallet
     WalletAlreadyExistsError = 203,
-    
+
     // Requested entity id isn't present in wallet
     WalletNotFoundError = 204,
-    
+
     // Trying to use wallet with pool that has different name
     WalletIncompatiblePoolError = 205,
-    
+
     // Trying to open wallet that was opened already
     WalletAlreadyOpenedError = 206,
 
     // Attempt to open encrypted wallet with invalid credentials
     WalletAccessFailed = 207,
+
+    // Input provided to wallet operations is considered not valid
+    WalletInputError = 208,
+
+    // Decoding of wallet data during input/output failed
+    WalletDecodingError = 209,
+
+    // Storage error occurred during wallet operation
+    WalletStorageError = 210,
+
+    // Error during encryption-related operations
+    WalletEncryptionError = 211,
+
+    // Requested wallet item not found
+    WalletItemNotFound = 212,
+
+    // Returned if wallet's add_record operation is used with record name that already exists
+    WalletItemAlreadyExists = 213,
+
+    // Returned if provided wallet query is invalid
+    WalletQueryError = 214,
     
     // Ledger errors
     // Trying to open pool ledger that wasn't created before
@@ -87,6 +108,9 @@ typedef NS_ENUM(NSInteger, IndyErrorCode)
     // No concensus during ledger operation
     LedgerNoConsensusError = 303,
 
+    // Attempt to parse invalid transaction response
+    LedgerInvalidTransaction = 304,
+
     // Attempt to send transaction without the necessary privileges
     LedgerSecurityError = 305,
     
@@ -95,30 +119,47 @@ typedef NS_ENUM(NSInteger, IndyErrorCode)
 
     // Timeout for action
     PoolLedgerTimeout = 307,
-    
+
+    // Attempt to open Pool for witch Genesis Transactions are not compatible with set Protocol version.
+    // Call pool.indy_set_protocol_version to set correct Protocol version.
+    PoolIncompatibleProtocolVersion = 308,
+
     // Revocation registry is full and creation of new registry is necessary
     AnoncredsRevocationRegistryFullError = 400,
     
-    AnoncredsInvalidUserRevocIndex = 401,
+    AnoncredsInvalidUserRevocId = 401,
     
     AnoncredsAccumulatorIsFull = 402,
-    
-    AnoncredsNotIssuedError = 403,
-    
-    // Attempt to generate master secret with dupplicated name
+
+    // Attempt to generate master secret with duplicated name
     AnoncredsMasterSecretDuplicateNameError = 404,
     
     AnoncredsProofRejected = 405,
 
-    AnoncredsClaimRevoked = 406,
+    AnoncredsCredentialRevoked = 406,
 
-    // Attempt to create claim definition with duplicated did schema pair
-    AnoncredsClaimDefAlreadyExistsError = 407,
+    // Attempt to create credential definition with duplicated did schema pair
+    AnoncredsCredDefAlreadyExistsError = 407,
 
     // Crypto errors
     // Unknown format of DID entity keys
     UnknownCryptoTypeError = 500,
 
     // Attempt to create duplicate did
-    DidAlreadyExistsError = 600
+    DidAlreadyExistsError = 600,
+
+    // Unknown payment method was given
+    PaymentUnknownMethodError = 700,
+
+    // No method were scraped from inputs/outputs or more than one were scraped
+    PaymentIncompatibleMethodsError = 701,
+
+    // Insufficient funds on inputs
+    PaymentInsufficientFundsError = 702,
+
+    // No such source on a ledger
+    PaymentSourceDoesNotExistError = 703,
+
+    // Operation is not supported for payment method
+    PaymentOperationNotSupportedError = 704
 };

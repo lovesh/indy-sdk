@@ -1,31 +1,46 @@
+#![cfg_attr(feature = "fatal_warnings", deny(warnings))]
+
 extern crate base64;
+extern crate byteorder;
 
 #[macro_use]
 extern crate log;
 
+extern crate serde;
+
 #[macro_use]
 extern crate serde_derive;
+
 #[macro_use]
 extern crate serde_json;
+
+extern crate rmp_serde;
 
 #[macro_use]
 extern crate lazy_static;
 
-extern crate openssl;
+extern crate named_type;
+
+#[macro_use]
+extern crate named_type_derive;
+
+extern crate indy_crypto;
+extern crate libsqlite3_sys;
+extern crate rlp;
+extern crate time;
+extern crate libc;
+extern crate rand;
+extern crate rusqlite;
 
 // Note that to use macroses from util inside of other modules it must me loaded first!
-#[allow(dead_code)] /* FIXME */
 #[macro_use]
 mod utils;
 
 pub mod api;
 mod commands;
-#[allow(dead_code)] /* FIXME */
-#[allow(unused_variables)] /* FIXME */
 mod errors;
-#[allow(dead_code)] /* FIXME */
-#[allow(unused_variables)] /* FIXME */
 mod services;
+mod domain;
 
 #[cfg(test)]
 mod tests {

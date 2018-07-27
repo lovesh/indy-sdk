@@ -1,4 +1,4 @@
-extern crate zmq_pw as zmq;
+extern crate zmq;
 extern crate serde_json;
 extern crate indy_crypto;
 
@@ -16,7 +16,8 @@ pub enum PoolError {
     Terminate,
     Timeout,
     AlreadyExists(String),
-    CommonError(CommonError)
+    PoolIncompatibleProtocolVersion(String),
+    CommonError(CommonError),
 }
 
 impl fmt::Display for PoolError {
@@ -27,7 +28,8 @@ impl fmt::Display for PoolError {
             PoolError::Terminate => write!(f, "Pool work terminated"),
             PoolError::Timeout => write!(f, "Timeout"),
             PoolError::AlreadyExists(ref description) => write!(f, "Pool ledger config already exists {}", description),
-            PoolError::CommonError(ref err) => err.fmt(f)
+            PoolError::PoolIncompatibleProtocolVersion(ref description) => write!(f, "Pool Genesis Transactions are not compatible with Protocol version {}", description),
+            PoolError::CommonError(ref err) => err.fmt(f),
         }
     }
 }
@@ -40,17 +42,18 @@ impl error::Error for PoolError {
             PoolError::Terminate => "Pool work terminated",
             PoolError::Timeout => "Timeout",
             PoolError::AlreadyExists(ref description) => description,
-            PoolError::CommonError(ref err) => err.description()
+            PoolError::PoolIncompatibleProtocolVersion(ref description) => description,
+            PoolError::CommonError(ref err) => err.description(),
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            PoolError::NotCreated(ref description) |
-            PoolError::InvalidHandle(ref description) => None,
+            PoolError::NotCreated(_) | PoolError::InvalidHandle(_) => None,
             PoolError::Terminate | PoolError::Timeout => None,
-            PoolError::AlreadyExists(ref description) => None,
-            PoolError::CommonError(ref err) => Some(err)
+            PoolError::AlreadyExists(_) => None,
+            PoolError::PoolIncompatibleProtocolVersion(_) => None,
+            PoolError::CommonError(ref err) => Some(err),
         }
     }
 }
@@ -77,11 +80,12 @@ impl From<zmq::Error> for PoolError {
 impl ToErrorCode for PoolError {
     fn to_error_code(&self) -> ErrorCode {
         match *self {
-            PoolError::NotCreated(ref description) => ErrorCode::PoolLedgerNotCreatedError,
-            PoolError::InvalidHandle(ref description) => ErrorCode::PoolLedgerInvalidPoolHandle,
+            PoolError::NotCreated(_) => ErrorCode::PoolLedgerNotCreatedError,
+            PoolError::InvalidHandle(_) => ErrorCode::PoolLedgerInvalidPoolHandle,
             PoolError::Terminate => ErrorCode::PoolLedgerTerminated,
             PoolError::Timeout => ErrorCode::PoolLedgerTimeout,
-            PoolError::AlreadyExists(ref description) => ErrorCode::PoolLedgerConfigAlreadyExistsError,
+            PoolError::AlreadyExists(_) => ErrorCode::PoolLedgerConfigAlreadyExistsError,
+            PoolError::PoolIncompatibleProtocolVersion(_) => ErrorCode::PoolIncompatibleProtocolVersion,
             PoolError::CommonError(ref err) => err.to_error_code()
         }
     }
